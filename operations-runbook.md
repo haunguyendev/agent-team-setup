@@ -11,24 +11,25 @@ section as a template to adapt, not as a tested pipeline.
 Machine setup, once:
 
 ```bash
-git clone <this-repo> ~/agent-team-setup
-P=~/agent-team-setup
-
-# global: protocol available in every project (hook uses an absolute path)
-python3 "$P/scripts/agent_team.py" install --repo "$PWD" --scope user --with-hooks
-
-# per project: also copies the AGENTS.md snippet next to the skill
-python3 "$P/scripts/agent_team.py" install --repo "$PWD" --scope project --with-hooks --with-agents-md
+gh repo clone <owner>/agent-team-setup ~/.local/share/agent-team-setup
+P=~/.local/share/agent-team-setup
+bash "$P/install.sh"                    # global: ~/.claude, hook included
+bash "$P/install.sh" --project "$PWD"   # or one project only, into $PWD/.claude
+bash "$P/install.sh" --check            # verify an existing install
 ```
+
+The script is additive and idempotent: existing agent assets are kept, `settings.json` is backed up
+before the guard is merged, and a second run does not duplicate the hook. `--global-dir` (or
+`AGENT_TEAM_HOME`) chooses where the package is cloned to when the script runs standalone, e.g. piped
+from a raw URL on a public fork.
 
 | Scope | Lands in | Hook command | Use when |
 |---|---|---|---|
-| `user` | `~/.claude/` | `python3 /abs/path/.claude/hooks/handoff_guard.py` | you want every project guarded |
-| `project` | `<repo>/.claude/` | `python3 "$CLAUDE_PROJECT_DIR/.claude/hooks/handoff_guard.py"` | repo is shared with teammates |
+| global (`--scope user`, default in `install.sh`) | `~/.claude/` | `python3 /abs/path/.claude/hooks/handoff_guard.py` | you want every project guarded |
+| project (`--project DIR`) | `<repo>/.claude/` | `python3 "$CLAUDE_PROJECT_DIR/.claude/hooks/handoff_guard.py"` | repo is shared with teammates |
 
 Resolve the protocol root at runtime with `$AGENT_TEAM_ROOT` or read
-`.claude/agent-team-ledger/protocol-root.txt`. Re-installing never overwrites your edits unless you
-pass `--force`, and merges into `settings.json` only after writing a timestamped backup.
+`.claude/agent-team-ledger/protocol-root.txt`.
 
 ## 2. When to spawn (and when not to)
 
@@ -263,9 +264,13 @@ the audit trail; they live outside the repository, so they survive checkout clea
 
 ## 14. Evidence and what is not verified
 
-- `python -m pytest tests/ -q` -> 18 passed: result validation, atomic ledger writes, publish
+- `python -m pytest tests/ -q` -> 22 passed: result validation, atomic ledger writes, publish
   preconditions, immutability and tamper detection, verifier veto (divergence, failing evidence,
-  `expected_failure`), promotion preconditions, hook write boundary, installer scope behaviour.
+  `expected_failure`), promotion preconditions, hook write boundary, installer scope behaviour, and
+  `install.sh` (global/project scope, idempotent re-install, check mode, unknown-option failure).
+- Standalone install: `install.sh` copied to an empty directory with a fresh `HOME` cloned the
+  package into `AGENT_TEAM_HOME`, wired `~/.claude`, and pinned the protocol root - the piped-install
+  path, exercised against the private remote.
 - End-to-end CLI run on a scratch repository: `init` -> `assign` -> worker worktree commit ->
   `publish` -> `verify accept` -> `promote` (staged files, task `complete`) -> a second attempt with a
   failing command was `reject`ed and `promote` exited 2 with the main checkout untouched ->

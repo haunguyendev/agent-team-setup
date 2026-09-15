@@ -70,6 +70,8 @@ def cmd_transition(args: argparse.Namespace) -> int:
 
 
 def cmd_install(args: argparse.Namespace) -> int:
+    if args.global_scope:
+        args.scope = "user"
     payload = installer.install(
         repo=Path(args.repo),
         scope=args.scope,
@@ -132,6 +134,7 @@ def build_parser() -> argparse.ArgumentParser:
     install = sub.add_parser("install", help="install skills/subagents/commands into a coding agent")
     install.add_argument("--repo", required=True)
     install.add_argument("--scope", choices=("project", "user"), default="project")
+    install.add_argument("--global", dest="global_scope", action="store_true", help="alias for --scope user")
     install.add_argument("--with-hooks", action="store_true", help="add the write-boundary hook (backup first)")
     install.add_argument("--with-agents-md", action="store_true", help="copy the AGENTS.md snippet locally")
     install.add_argument("--force", action="store_true")

@@ -70,12 +70,23 @@ committed (shared audit trail) or ignored (local control plane) - both work, but
 
 ## 3. Install the agent wiring
 
+Fast path (global, then work in any project):
+
+```bash
+gh repo clone haunguyendev/agent-team-setup ~/.local/share/agent-team-setup
+bash ~/.local/share/agent-team-setup/install.sh          # add --project DIR for one project only
+```
+
+Equivalent explicit form, if you prefer to keep the package somewhere else:
+
 ```bash
 python3 "$P/scripts/agent_team.py" install --repo . --scope project --with-hooks --with-agents-md
+python3 "$P/scripts/agent_team.py" install --repo . --global --with-hooks      # alias for --scope user
 ```
 
 Project scope writes into `<repo>/.claude/`; user scope writes into `~/.claude/` for every project.
-Existing files are kept unless you pass `--force`.
+Existing files are kept unless you pass `--force`. `install.sh` defaults to global scope with the
+hook enabled, prints every action it took, and supports `--check` to verify an existing install.
 
 | Installed | Contract |
 |---|---|
@@ -181,8 +192,8 @@ none of `complete`. Use
 
 ## Evidence
 
-- `python -m pytest tests/ -q` → 15 passed (core protocol, lanes, publish/verify/promote, veto,
-  immutability, hook boundary).
+- `python -m pytest tests/ -q` → 22 passed (core protocol, lanes, publish/verify/promote, veto,
+  immutability, hook boundary, installer scopes, `install.sh`).
 - End-to-end demo on a scratch repository: task assigned → worker worktree committed → `publish`
   → `verify` `accept` → `promote` staged `app.py`/`test_app.py` and closed `T-001`; a second
   attempt with a failing command was `reject`ed and `promote` exited `2` without touching the main
