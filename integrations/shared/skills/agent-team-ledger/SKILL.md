@@ -12,10 +12,24 @@ different models.
 ## Locate the protocol root
 
 ```bash
-cat "${AGENT_TEAM_ROOT:-.claude/agent-team-ledger/protocol-root.txt}"   # run once per session
+# $P = the protocol package root; run once per session
+P="${AGENT_TEAM_ROOT:-$(cat .claude/agent-team-ledger/protocol-root.txt 2>/dev/null \
+  || cat .omp/agent/agent-team-ledger/protocol-root.txt 2>/dev/null \
+  || cat .omp/agent-team-ledger/protocol-root.txt 2>/dev/null)}"
+[ -n "$P" ] || echo "protocol root not found - run the package's install.sh"
 ```
 
-Call the printed directory `$P`. Never edit `$P/core` or `$P/scripts` mid-task.
+Never edit `$P/core` or `$P/scripts` mid-task.
+
+## Dispatch
+
+- **Claude Code**: `Task` tool with `subagent_type: agent-team-worker`.
+- **OMP**: `task` tool with `agent: "agent-team-worker"`; put several items in one `tasks[]` batch for
+  parallel workers, and `isolated: true` requests a worktree.
+
+On both harnesses a spawned worker keeps the coordinator's working directory unless you start it in
+the worktree, so name the absolute worktree path in every dispatch and do not rely on the guard hook
+to separate the two.
 
 ## Roles and who may write what
 

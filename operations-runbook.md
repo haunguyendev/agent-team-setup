@@ -13,10 +13,13 @@ Machine setup, once:
 ```bash
 gh repo clone <owner>/agent-team-setup ~/.local/share/agent-team-setup
 P=~/.local/share/agent-team-setup
-bash "$P/install.sh"                    # global: ~/.claude, hook included
-bash "$P/install.sh" --project "$PWD"   # or one project only, into $PWD/.claude
+bash "$P/install.sh"                    # global, every harness it finds: ~/.claude and ~/.omp/agent
+bash "$P/install.sh" --target omp       # OMP only
+bash "$P/install.sh" --project "$PWD"   # or one project only, into $PWD/.claude and $PWD/.omp
 bash "$P/install.sh" --check            # verify an existing install
 ```
+
+`--target` accepts `auto` (default: OMP only where `~/.omp` already exists), `claude`, `omp`, `both`.
 
 The script is additive and idempotent: existing agent assets are kept, `settings.json` is backed up
 before the guard is merged, and a second run does not duplicate the hook. `--global-dir` (or

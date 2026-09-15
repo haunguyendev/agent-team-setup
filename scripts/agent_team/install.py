@@ -1,9 +1,14 @@
 """Install the ledger protocol wiring into a coding agent configuration.
 
-Claude Code reads skills, subagents and commands from ``<project>/.claude`` or
-``~/.claude``. Installation is additive: existing files are never overwritten
-unless ``--force`` is passed, and ``settings.json`` is edited only behind
-``--with-hooks``, after writing a timestamped backup.
+Two harnesses are supported from one source of truth:
+
+* Claude Code reads skills, subagents and commands from ``<project>/.claude`` or ``~/.claude``, and
+  takes its write guard from a ``settings.json`` hook.
+* OMP reads them from ``<project>/.omp`` or ``~/.omp/agent``, discovers agent definitions from
+  ``agents/``, and discovers hook factories by path from ``hooks/pre/*.ts`` - no settings entry.
+
+Installation is additive: existing files are never overwritten unless ``--force`` is passed, and
+``settings.json`` is edited only behind ``--with-hooks``, after writing a timestamped backup.
 """
 from __future__ import annotations
 
@@ -16,25 +21,50 @@ from core.protocol import ProtocolError
 
 ROOT = Path(__file__).resolve().parents[2]
 INTEGRATIONS = ROOT / "integrations"
+HARNESSES = ("claude", "omp")
+GUARD_MATCHER = "Write|Edit|MultiEdit|NotebookEdit"
+GUARD_COMMAND = 'python3 "$CLAUDE_PROJECT_DIR/.claude/hooks/handoff_guard.py"'
+
+SHARED_ASSETS = (
+    ("shared/skills/agent-team-ledger/SKILL.md", "skills/agent-team-ledger/SKILL.md"),
+    ("shared/commands/agent-team.md", "commands/agent-team.md"),
+)
 CLAUDE_ASSETS = (
-    ("claude-code/skills/agent-team-ledger/SKILL.md", "skills/agent-team-ledger/SKILL.md"),
     ("claude-code/agents/agent-team-coordinator.md", "agents/agent-team-coordinator.md"),
     ("claude-code/agents/agent-team-worker.md", "agents/agent-team-worker.md"),
     ("claude-code/agents/agent-team-verifier.md", "agents/agent-team-verifier.md"),
-    ("claude-code/commands/agent-team.md", "commands/agent-team.md"),
 )
-HOOK_ASSETS = (("claude-code/hooks/handoff_guard.py", "hooks/handoff_guard.py"),)
-AGENTS_SNIPPET = "agents-md/AGENTS.snippet.md"
-GUARD_COMMAND = 'python3 "$CLAUDE_PROJECT_DIR/.claude/hooks/handoff_guard.py"'
-GUARD_MATCHER = "Write|Edit|MultiEdit|NotebookEdit"
+CLAUDE_HOOKS = (("claude-code/hooks/handoff_guard.py", "hooks/handoff_guard.py"),)
+OMP_ASSETS = (
+    ("omp/agents/agent-team-coordinator.md", "agents/agent-team-coordinator.md"),
+    ("omp/agents/agent-team-worker.md", "agents/agent-team-worker.md"),
+    ("omp/agents/agent-team-verifier.md", "agents/agent-team-verifier.md"),
+)
+OMP_HOOKS = (("omp/hooks/pre/handoff_guard.ts", "hooks/pre/handoff_guard.ts"),)
+AGENTS_SNIPPET = "shared/AGENTS.snippet.md"
 
 
-def claude_root(repo: Path, scope: str) -> Path:
+def config_root(harness: str, repo: Path, scope: str) -> Path:
     if scope == "user":
-        return Path.home() / ".claude"
+        return (Path.home() / ".claude") if harness == "claude" else (Path.home() / ".omp" / "agent")
     if scope != "project":
         raise ProtocolError("scope must be 'project' or 'user'")
-    return repo / ".claude"
+    return (repo / ".claude") if harness == "claude" else (repo / ".omp")
+
+
+def resolve_targets(requested: str, repo: Path, scope: str) -> list[str]:
+    """``auto`` installs Claude Code always, and OMP only where OMP already lives."""
+    if requested == "both":
+        return list(HARNESSES)
+    if requested in HARNESSES:
+        return [requested]
+    if requested != "auto":
+        raise ProtocolError("target must be auto, claude, omp, or both")
+    detected = ["claude"]
+    probe = Path.home() / ".omp" if scope == "user" else repo / ".omp"
+    if probe.exists():
+        detected.append("omp")
+    return detected
 
 
 def _copy(source: Path, target: Path, force: bool) -> str:
@@ -43,24 +73,6 @@ def _copy(source: Path, target: Path, force: bool) -> str:
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source, target)
     return f"wrote {target}"
-
-
-def _merge_hooks(settings: Path, command: str, matcher: str) -> str:
-    settings.parent.mkdir(parents=True, exist_ok=True)
-    existing: dict = {}
-    if settings.exists():
-        try:
-            existing = json.loads(settings.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as error:
-            raise ProtocolError(f"{settings} is not valid JSON: {error}") from error
-        shutil.copy2(settings, settings.with_suffix(settings.suffix + f".bak-{int(time.time())}"))
-    hooks = existing.setdefault("hooks", {})
-    pre = hooks.setdefault("PreToolUse", [])
-    if command in _registered_commands(pre):
-        return f"hook already registered in {settings}"
-    pre.append({"matcher": matcher, "hooks": [{"type": "command", "command": command}]})
-    settings.write_text(json.dumps(existing, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    return f"registered handoff guard in {settings}"
 
 
 def _registered_commands(pre_tool_use: list) -> list[str]:
@@ -73,48 +85,80 @@ def _registered_commands(pre_tool_use: list) -> list[str]:
     ]
 
 
+def _merge_hooks(settings: Path, command: str, matcher: str) -> str:
+    settings.parent.mkdir(parents=True, exist_ok=True)
+    existing: dict = {}
+    if settings.exists():
+        try:
+            existing = json.loads(settings.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as error:
+            raise ProtocolError(f"{settings} is not valid JSON: {error}") from error
+        shutil.copy2(settings, settings.with_suffix(settings.suffix + f".bak-{int(time.time())}"))
+    pre = existing.setdefault("hooks", {}).setdefault("PreToolUse", [])
+    if command in _registered_commands(pre):
+        return f"hook already registered in {settings}"
+    pre.append({"matcher": matcher, "hooks": [{"type": "command", "command": command}]})
+    settings.write_text(json.dumps(existing, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return f"registered handoff guard in {settings}"
+
+
 def install(
     repo: Path,
     scope: str = "project",
+    target: str = "auto",
     with_hooks: bool = False,
     with_agents_md: bool = False,
     force: bool = False,
 ) -> dict:
     repo = repo.resolve()
-    destination = claude_root(repo, scope)
+    harnesses = resolve_targets(target, repo, scope)
     actions: list[str] = []
-    assets = list(CLAUDE_ASSETS)
-    if with_hooks:
-        assets += list(HOOK_ASSETS)
-    for relative_source, relative_target in assets:
-        source = INTEGRATIONS / relative_source
-        if not source.exists():
-            raise ProtocolError(f"missing integration asset: {source}")
-        actions.append(_copy(source, destination / relative_target, force))
-    if with_hooks:
-        guard = destination / "hooks/handoff_guard.py"
-        if guard.exists():
+    roots: dict[str, str] = {}
+    guards: dict[str, str] = {}
+
+    for harness in harnesses:
+        destination = config_root(harness, repo, scope)
+        roots[harness] = str(destination)
+        assets = list(SHARED_ASSETS) + list(CLAUDE_ASSETS if harness == "claude" else OMP_ASSETS)
+        if with_hooks:
+            assets += list(CLAUDE_HOOKS if harness == "claude" else OMP_HOOKS)
+        for relative_source, relative_target in assets:
+            source = INTEGRATIONS / relative_source
+            if not source.exists():
+                raise ProtocolError(f"missing integration asset: {source}")
+            actions.append(_copy(source, destination / relative_target, force))
+
+        if with_hooks and harness == "claude":
+            guard = destination / "hooks/handoff_guard.py"
             guard.chmod(0o755)
-        command = (
-            f"python3 {guard}" if scope == "user" else f'python3 "$CLAUDE_PROJECT_DIR/.claude/hooks/handoff_guard.py"'
-        )
-        actions.append(_merge_hooks(destination / "settings.json", command, GUARD_MATCHER))
-    root_pointer = destination / "agent-team-ledger" / "protocol-root.txt"
-    root_pointer.parent.mkdir(parents=True, exist_ok=True)
-    root_pointer.write_text(f"{ROOT}\n", encoding="utf-8")
-    actions.append(f"wrote {root_pointer}")
-    snippet_target = destination / "agent-team-ledger" / "AGENTS.snippet.md"
+            command = f"python3 {guard}" if scope == "user" else GUARD_COMMAND
+            actions.append(_merge_hooks(destination / "settings.json", command, GUARD_MATCHER))
+            guards["claude"] = command
+        elif with_hooks:
+            guards["omp"] = f"{destination}/hooks/pre/handoff_guard.ts (discovered by path)"
+
+        pointer = destination / "agent-team-ledger" / "protocol-root.txt"
+        pointer.parent.mkdir(parents=True, exist_ok=True)
+        pointer.write_text(f"{ROOT}\n", encoding="utf-8")
+        actions.append(f"wrote {pointer}")
+
+    snippet = INTEGRATIONS / AGENTS_SNIPPET
     if with_agents_md:
-        actions.append(_copy(INTEGRATIONS / AGENTS_SNIPPET, snippet_target, force))
+        for harness, root in roots.items():
+            actions.append(_copy(snippet, Path(root) / "agent-team-ledger" / "AGENTS.snippet.md", force))
+
+    primary = roots.get("claude") or roots[harnesses[0]]
     return {
         "scope": scope,
-        "claude_root": str(destination),
+        "targets": harnesses,
+        "roots": roots,
+        "guards": guards,
         "protocol_root": str(ROOT),
         "actions": actions,
-        "agents_snippet": str(snippet_target) if with_agents_md else str(INTEGRATIONS / AGENTS_SNIPPET),
+        "agents_snippet": str(snippet),
         "next_step": (
-            f"paste {snippet_target if with_agents_md else INTEGRATIONS / AGENTS_SNIPPET} "
-            "into the project AGENTS.md or CLAUDE.md, then run: "
+            f"paste {snippet} into the project AGENTS.md or CLAUDE.md, then run: "
             f"python {ROOT / 'scripts/agent_team.py'} init --repo {repo}"
         ),
+        "claude_root": primary,
     }

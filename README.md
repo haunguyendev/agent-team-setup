@@ -6,7 +6,7 @@ repositories.
 This package keeps the useful paper ideas—fresh worker contexts, durable curated state,
 dynamic task selection, and external verification—while respecting Claude Code worktree
 isolation. Workers publish immutable handoffs; only the coordinator promotes them into the
-authoritative repository ledger.
+authoritative repository ledger. Runs on Claude Code and on OMP, from one runtime and one ledger.
 
 - [Apply to a coding agent](apply-to-coding-agent.md)
 - [Operations runbook](operations-runbook.md) — when to spawn, spawn prompts, parallel work, CI, failure playbook
@@ -19,7 +19,8 @@ authoritative repository ledger.
 
 The canonical implementation is in `core/`, with project adapters in `adapters/`, the handoff
 runtime in `scripts/agent_team/`, and an inspection/bootstrap CLI in `scripts/agent_team.py`.
-Agent wiring (skill, subagents, slash command, write-boundary hook) lives in `integrations/`.
+Agent wiring lives in `integrations/shared/` (skill, slash command, AGENTS.md snippet) plus
+`integrations/claude-code/` and `integrations/omp/` (subagents and the write-boundary hook).
 Each adapter uses 20 logical lanes and the `auto` model.
 
 ## Install
@@ -35,13 +36,18 @@ From a checkout, `./install.sh` does the same thing.
 
 | Flag | Effect |
 |---|---|
-| *(none)* | global: skill + subagents + slash command + write-boundary hook into `~/.claude` |
-| `--project DIR` | same wiring, but into `DIR/.claude` only |
+| *(none)* | global: skill + subagents + slash command + write-boundary hook into `~/.claude` and `~/.omp/agent` |
+| `--project DIR` | same wiring, but into `DIR/.claude` / `DIR/.omp` only |
 | `--global-dir DIR` | where the protocol package lives when the script has to clone itself (`AGENT_TEAM_HOME`) |
 | `--no-hooks` | skip registering the guard in `settings.json` |
 | `--with-agents-md` | also copy the `AGENTS.md` snippet into the target |
+| `--target WHICH` | `auto` (default), `claude`, `omp`, or `both` — OMP wiring goes to `~/.omp/agent` |
 | `--force` | overwrite existing agent assets |
 | `--check` | verify an existing installation and exit |
+
+Both harnesses are supported: Claude Code reads `~/.claude`, OMP reads `~/.omp/agent` natively
+(its own `agents/`, `hooks/pre/`, `skills/`, `commands/`) while also reading Claude's skills and
+commands through its `claude` discovery provider.
 
 The installer is additive: existing files are kept, and `settings.json` is backed up before the
 hook is merged (merging twice does not duplicate it). Once the repository is public, the script
@@ -58,7 +64,7 @@ python3 "$P/scripts/agent_team.py" init    --repo /path/to/checkout --title "obj
 Requirements: `git` and `python3` (3.9+, standard library only). Tests need `pytest`.
 
 ```bash
-uv run --with pytest python -m pytest tests/ -q     # 22 passed
+uv run --with pytest python -m pytest tests/ -q     # 26 passed (guard rules need bun)
 ```
 
 ## Notes

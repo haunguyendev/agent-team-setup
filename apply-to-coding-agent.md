@@ -100,11 +100,44 @@ hook enabled, prints every action it took, and supports `--check` to verify an e
 | `settings.json` (with `--with-hooks`) | registers the guard on `Write\|Edit\|MultiEdit\|NotebookEdit`; backup written first |
 
 `--with-agents-md` copies `AGENTS.snippet.md` next to the skill; paste it into the repository
-`AGENTS.md`/`CLAUDE.md` so agents that do not read Claude Code skills still follow the protocol.
+`AGENTS.md`/`CLAUDE.md` so agents that do not read skills still follow the protocol.
 The snippet is deliberately short: roles, write boundaries, and the five commands that matter.
 
-For Codex or another agent, install with `--scope project`, then paste the snippet. The protocol
-itself is agent-agnostic - only the skill/subagent/hook files are Claude Code specific.
+### OMP
+
+OMP reads Claude's skill and command directories through its `claude` discovery provider, so the
+install above already gives OMP the `agent-team-ledger` skill and `/agent-team`. Two things do **not**
+carry over, because OMP treats other harnesses' agent directories as foreign:
+
+| Piece | Claude Code | OMP |
+|---|---|---|
+| Skill | `~/.claude/skills/agent-team-ledger/` | read via the `claude` provider, or natively from `~/.omp/agent/skills/` |
+| Slash command | `~/.claude/commands/agent-team.md` | read via the `claude` provider, or natively from `~/.omp/agent/commands/` |
+| Subagents | `~/.claude/agents/*.md` | **native only**: `~/.omp/agent/agents/*.md` (`.claude/agents` is skipped by design) |
+| Write guard | `settings.json` `PreToolUse` → Python | **native hook by path**: `~/.omp/agent/hooks/pre/handoff_guard.ts` |
+
+Install the native copies with:
+
+```bash
+python3 "$P/scripts/agent_team.py" install --repo . --scope user --target omp --with-hooks
+# or both harnesses at once; `auto` installs OMP only where OMP already exists
+python3 "$P/scripts/agent_team.py" install --repo . --scope user --target both --with-hooks
+```
+
+The OMP agents declare `autoloadSkills: agent-team-ledger` (the skill is injected into each subagent),
+`spawns` (the coordinator may spawn worker and verifier; the worker and verifier may spawn nothing),
+and `tools` (the verifier has no write access at all). OMP needs no settings entry for the hook: it
+discovers factories from `hooks/pre/*.ts` and the rule is the same one the Python guard applies.
+
+Dispatch on OMP:
+
+```text
+task tool:  tasks: [{ agent: "agent-team-worker", task: "<assignment>", isolated: true }]
+```
+
+`isolated: true` asks OMP for a worktree, but the verified path is an explicit
+`git -C MAIN worktree add <path> -b agent/<TASK> <base>` whose absolute path you put in the
+assignment - that is what `publish --worktree` is checked against.
 
 ## 4. Run one task end to end
 

@@ -1,7 +1,8 @@
 ## Agent team protocol (ledger-based self-orchestration)
 
 Applies to any coding agent that can run shell commands. The canonical runtime is this package;
-resolve `PROTOCOL` to its path (`$AGENT_TEAM_ROOT`, else `.claude/agent-team-ledger/protocol-root.txt`).
+resolve `PROTOCOL` to its path with `$AGENT_TEAM_ROOT`, else from `agent-team-ledger/protocol-root.txt`
+under the agent config directory (`.claude/` for Claude Code, `.omp/agent/` or `.omp/` for OMP).
 
 Roles, and who may write what:
 

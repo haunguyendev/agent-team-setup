@@ -13,7 +13,7 @@ set -euo pipefail
 REPO_URL="${AGENT_TEAM_REPO_URL:-https://github.com/haunguyendev/agent-team-setup}"
 DEFAULT_DIR="${AGENT_TEAM_HOME:-${XDG_DATA_HOME:-$HOME/.local/share}/agent-team-setup}"
 
-GLOBAL_DIR=""; SCOPE="user"; PROJECT=""; WITH_HOOKS=1; WITH_AGENTS_MD=0; FORCE=0; CHECK=0
+GLOBAL_DIR=""; SCOPE="user"; PROJECT=""; TARGETS="auto"; WITH_HOOKS=1; WITH_AGENTS_MD=0; FORCE=0; CHECK=0
 QUIET=0
 
 bold() { [ "$QUIET" = 1 ] || printf '\033[1m%s\033[0m\n' "$1"; }
@@ -31,6 +31,7 @@ Usage: install.sh [options]
   --global-dir DIR    where to keep the protocol package (default: ~/.local/share/agent-team-setup)
   --project DIR       install into DIR/.claude instead of the global agent config
   --scope user|project  explicit scope (default: user; --project implies project)
+  --target WHICH      auto | claude | omp | both (default: auto - OMP only where OMP exists)
   --no-hooks          do not register the write-boundary hook in settings.json
   --with-agents-md    also copy the AGENTS.md snippet into the target
   --force             overwrite existing agent assets
@@ -47,6 +48,7 @@ while [ $# -gt 0 ]; do
     --global-dir) GLOBAL_DIR="${2:?--global-dir needs a value}"; shift 2 ;;
     --project)    PROJECT="${2:?--project needs a value}"; SCOPE="project"; shift 2 ;;
     --scope)      SCOPE="${2:?--scope needs a value}"; shift 2 ;;
+    --target)     TARGETS="${2:?--target needs a value}"; shift 2 ;;
     --no-hooks)   WITH_HOOKS=0; shift ;;
     --with-agents-md) WITH_AGENTS_MD=1; shift ;;
     --force)      FORCE=1; shift ;;
@@ -105,16 +107,17 @@ if [ "$SCOPE" = "project" ]; then
 else
   ARGS=(install --repo "$P" --scope user)
 fi
+ARGS+=(--target "$TARGETS")
 [ "$WITH_HOOKS" = 1 ] && ARGS+=(--with-hooks)
 [ "$WITH_AGENTS_MD" = 1 ] && ARGS+=(--with-agents-md)
 [ "$FORCE" = 1 ] && ARGS+=(--force)
 
 bold "Installing the ledger protocol"
 info "protocol package: $P"
-info "agent config:     $([ "$SCOPE" = user ] && echo "$HOME/.claude" || echo "$PROJECT/.claude") ($SCOPE scope)"
+info "scope:            $SCOPE (targets: $TARGETS)"
 
 RESULT="$("$PY" "$P/scripts/agent_team.py" "${ARGS[@]}")" || die "installation failed"
-CLAUDE_ROOT="$("$PY" -c 'import json,sys; print(json.loads(sys.argv[1])["claude_root"])' "$RESULT")"
+ROOTS_BLOCK="$("$PY" -c 'import json,sys; d=json.loads(sys.argv[1])["roots"]; print("\n".join(f"    {k:<7} {v}" for k, v in d.items()))' "$RESULT")"
 
 while IFS= read -r line; do ok "$line"; done < <(
   "$PY" -c 'import json,sys; [print(a) for a in json.loads(sys.argv[1])["actions"]]' "$RESULT"
@@ -129,7 +132,7 @@ $(bold "Done.")
     python3 "$P/scripts/agent_team.py" init    --repo "\$(git rev-parse --show-toplevel)" --title "objective"
     python3 "$P/scripts/agent_team.py" inspect --adapter "$P/adapters/promete_verba.json" --repo .
 
-  In Claude Code:  /agent-team <objective>     (skill: agent-team-ledger)
+  Agent configs:
+$ROOTS_BLOCK
   Protocol root:   $P
-  Agent config:    $CLAUDE_ROOT
 EOF
