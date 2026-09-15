@@ -56,6 +56,25 @@ worker's summary as proof; the verifier's re-run is the proof. Do not edit ledge
 hand. If a layer refuses, show me the refusal instead of working around it.
 ```
 
+## The same prompt on OMP
+
+OMP reads this package's skill and slash command from `~/.claude` through its `claude` discovery
+provider, and `install.sh --target both` also writes native copies under `~/.omp/agent` (agents,
+skill, command, and the `hooks/pre/handoff_guard.ts` guard). Agents, hooks and skills are discovered
+at session start, so open a fresh session in the demo repository:
+
+```bash
+cd landing-demo && omp
+```
+
+```text
+/agent-team build the Bát Cơm landing page - README.md is the spec, keep going until python3 check.py exits 0
+```
+
+The coordinator dispatches with the `task` tool - `{ agent: "agent-team-worker", task: "<assignment>" }`,
+one item per worker, several items in one `tasks[]` batch for parallel work. Everything else is the
+same as above, including the acceptance command and the promotion gate.
+
 ## What to expect
 
 | Step | Expected |
