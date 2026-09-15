@@ -11,6 +11,7 @@ authoritative repository ledger.
 - [Apply to a coding agent](apply-to-coding-agent.md)
 - [Operations runbook](operations-runbook.md) — when to spawn, spawn prompts, parallel work, CI, failure playbook
 - [Test prompts](examples/prompts.md) — paste-ready prompts plus a scratch repository with real defects
+- [Landing page prompt](examples/landing-prompt.md) — one prompt building a static landing page against an acceptance script
 - [Protocol](protocol.md)
 - [Result schema](schemas/result.schema.json)
 - [Script contract](scripts/README.md)
