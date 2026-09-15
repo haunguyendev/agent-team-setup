@@ -1,0 +1,9 @@
+{
+  "protocol_version": 1,
+  "project": "mcu",
+  "repository": "/home/oneadmin/GoogleDrive/minhluan1590@gmail.com/working/Softfoundry/mcu",
+  "ledger": "ledger",
+  "handoff_namespace": "17190357e4b6d363b299",
+  "logical_lanes": 20,
+  "model": "auto"
+}

@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.DS_Store
+
+# Under-review conference submission (ICLR 2027, third-party authors): keep the file
+# locally, never redistribute it from this repository. See README.
+paper/iclr2027_conference.pdf
