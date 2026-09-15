@@ -95,7 +95,7 @@ hook enabled, prints every action it took, and supports `--check` to verify an e
 | `agents/agent-team-worker.md` | one worktree, one attempt, publish |
 | `agents/agent-team-verifier.md` | reruns commands, issues verdict |
 | `commands/agent-team.md` | `/agent-team <objective>` |
-| `hooks/handoff_guard.py` | blocks a worker from writing the main checkout or a sibling worktree |
+| `hooks/handoff_guard.py` | blocks a worker session from writing the main checkout or a sibling worktree (it keys off the session cwd, so a worker must actually run in its own worktree) |
 | `agent-team-ledger/protocol-root.txt` | absolute path to this package, so skills resolve `$P` |
 | `settings.json` (with `--with-hooks`) | registers the guard on `Write\|Edit\|MultiEdit\|NotebookEdit`; backup written first |
 

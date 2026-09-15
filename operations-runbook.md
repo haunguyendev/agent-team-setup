@@ -31,6 +31,12 @@ from a raw URL on a public fork.
 Resolve the protocol root at runtime with `$AGENT_TEAM_ROOT` or read
 `.claude/agent-team-ledger/protocol-root.txt`.
 
+The guard's rule is "a session inside a linked worktree may only write inside that worktree". It keys
+off the session `cwd`, so it protects you when a worker genuinely runs in its own worktree (its own
+terminal, or a session started with `cwd` set there). A worker subagent that shares the coordinator's
+`cwd` looks like the coordinator to the hook and cannot be distinguished - for that case the boundary
+is the prompt and the ledger, not the hook.
+
 ## 2. When to spawn (and when not to)
 
 | Situation | Move | Why |
