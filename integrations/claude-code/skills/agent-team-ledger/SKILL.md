@@ -48,6 +48,9 @@ python "$P/scripts/agent_team/reconcile.py" --repo MAIN --json
 Rules:
 - Re-curate the queue after every result: merge duplicates, close finished tasks, then assign
   exactly one next task with exclusive file ownership.
+- Derive the acceptance command from repo conventions before assigning (`README.md` for the brief,
+  `check.py` / `tests/` / `Makefile` for the check). If none exists, the task must add one: the
+  verifier needs a command that fails before the change and passes after it.
 - Keep `plan.md` under 4000 and `notes.md` under 8000 characters; the ledger holds pointers,
   never transcripts.
 - Assign with `assign`, which writes a lock identifying repository, task, attempt, owner, files,
